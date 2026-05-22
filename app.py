@@ -1,0 +1,137 @@
+import json
+import uuid
+from datetime import datetime, date, time
+from pathlib import Path
+
+import streamlit as st
+
+DATA_FILE = Path(__file__).parent / "polls.json"
+
+
+def load_data():
+    if DATA_FILE.exists():
+        return json.loads(DATA_FILE.read_text())
+    return {}
+
+
+def save_data(data):
+    DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def create_poll():
+    st.header("Skapa en omröstning")
+
+    question = st.text_input("Fråga")
+
+    if "num_options" not in st.session_state:
+        st.session_state.num_options = 2
+
+    options = []
+    for i in range(st.session_state.num_options):
+        opt = st.text_input(f"Alternativ {i + 1}", key=f"opt_{i}")
+        options.append(opt)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("+ Lägg till alternativ"):
+            st.session_state.num_options += 1
+            st.rerun()
+    with col2:
+        if st.session_state.num_options > 2 and st.button("- Ta bort sista"):
+            st.session_state.num_options -= 1
+            st.rerun()
+
+    st.subheader("När ska resultatet visas?")
+    reveal_date = st.date_input("Datum", value=date.today())
+    reveal_time = st.time_input("Tid", value=time(15, 0))
+
+    if st.button("Skapa omröstning"):
+        options = [o.strip() for o in options if o.strip()]
+        if not question.strip():
+            st.error("Skriv en fråga.")
+            return
+        if len(options) < 2:
+            st.error("Lägg till minst 2 alternativ.")
+            return
+
+        poll_id = uuid.uuid4().hex[:6]
+        reveal_at = datetime.combine(reveal_date, reveal_time).isoformat()
+
+        data = load_data()
+        data[poll_id] = {
+            "question": question.strip(),
+            "options": options,
+            "votes": {opt: 0 for opt in options},
+            "reveal_at": reveal_at,
+        }
+        save_data(data)
+
+        poll_url = f"?poll={poll_id}"
+        st.success("Omröstningen är skapad!")
+        st.info(f"Dela denna länk:\n\n`{poll_url}`")
+        st.code(poll_url)
+
+
+def show_poll(poll_id):
+    data = load_data()
+
+    if poll_id not in data:
+        st.error("Omröstningen finns inte.")
+        return
+
+    poll = data[poll_id]
+    now = datetime.now()
+    reveal_at = datetime.fromisoformat(poll["reveal_at"])
+
+    st.header(poll["question"])
+
+    if now >= reveal_at:
+        st.subheader("Resultat")
+        total = sum(poll["votes"].values())
+        for option in poll["options"]:
+            count = poll["votes"][option]
+            pct = (count / total * 100) if total > 0 else 0
+            st.write(f"**{option}** — {count} röster ({pct:.0f}%)")
+            st.progress(pct / 100 if total > 0 else 0)
+    else:
+        voted_key = f"voted_{poll_id}"
+
+        if st.session_state.get(voted_key):
+            st.success(
+                f"Tack för din röst! Resultatet visas {reveal_at.strftime('%Y-%m-%d')} kl {reveal_at.strftime('%H:%M')}."
+            )
+            return
+
+        st.write("Välj ett eller flera alternativ:")
+        selected = []
+        for option in poll["options"]:
+            if st.checkbox(option, key=f"vote_{poll_id}_{option}"):
+                selected.append(option)
+
+        if st.button("Rösta"):
+            if not selected:
+                st.warning("Välj minst ett alternativ.")
+                return
+
+            data = load_data()
+            for option in selected:
+                data[poll_id]["votes"][option] += 1
+            save_data(data)
+            st.session_state[voted_key] = True
+            st.rerun()
+
+
+def main():
+    st.set_page_config(page_title="Omröstning", page_icon="🗳️")
+    st.title("🗳️ Omröstning")
+
+    params = st.query_params
+    poll_id = params.get("poll")
+
+    if poll_id:
+        show_poll(poll_id)
+    else:
+        create_poll()
+
+
+main()
