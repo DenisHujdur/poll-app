@@ -63,7 +63,8 @@ def create_poll():
         data[poll_id] = {
             "question": question.strip(),
             "options": options,
-            "votes": {opt: 0 for opt in options},
+            "scores": {opt: 0 for opt in options},
+            "num_responses": 0,
             "reveal_at": reveal_at,
         }
         save_data(data)
@@ -88,35 +89,45 @@ def show_poll(poll_id):
 
     if now >= reveal_at:
         st.subheader("Resultat")
-        total = sum(poll["votes"].values())
-        for option in poll["options"]:
-            count = poll["votes"][option]
-            pct = (count / total * 100) if total > 0 else 0
-            st.write(f"**{option}** — {count} röster ({pct:.0f}%)")
-            st.progress(pct / 100 if total > 0 else 0)
+        scores = poll["scores"]
+        num = poll.get("num_responses", 0)
+        sorted_options = sorted(poll["options"], key=lambda o: scores[o], reverse=True)
+        max_score = max(scores.values()) if scores else 1
+        for i, option in enumerate(sorted_options):
+            pts = scores[option]
+            st.write(f"**{i + 1}. {option}** — {pts} poäng")
+            st.progress(pts / max_score if max_score > 0 else 0)
+        st.caption(f"Antal svar: {num}")
     else:
         voted_key = f"voted_{poll_id}"
 
         if st.session_state.get(voted_key):
             st.success(
-                f"Tack för din röst! Resultatet visas {reveal_at.strftime('%Y-%m-%d')} kl {reveal_at.strftime('%H:%M')}."
+                f"Tack! Resultatet visas {reveal_at.strftime('%Y-%m-%d')} kl {reveal_at.strftime('%H:%M')}."
             )
             return
 
-        st.write("Välj ett eller flera alternativ:")
-        selected = []
+        n = len(poll["options"])
+        st.write("Rangordna alternativen (1 = bäst):")
+        rankings = {}
         for option in poll["options"]:
-            if st.checkbox(option, key=f"vote_{poll_id}_{option}"):
-                selected.append(option)
+            rank = st.selectbox(
+                option,
+                options=list(range(1, n + 1)),
+                key=f"rank_{poll_id}_{option}",
+            )
+            rankings[option] = rank
 
-        if st.button("Rösta"):
-            if not selected:
-                st.warning("Välj minst ett alternativ.")
+        if st.button("Skicka"):
+            used = list(rankings.values())
+            if len(set(used)) != len(used):
+                st.warning("Varje placering kan bara användas en gång.")
                 return
 
             data = load_data()
-            for option in selected:
-                data[poll_id]["votes"][option] += 1
+            for option, rank in rankings.items():
+                data[poll_id]["scores"][option] += (n - rank + 1)
+            data[poll_id]["num_responses"] = data[poll_id].get("num_responses", 0) + 1
             save_data(data)
             st.session_state[voted_key] = True
             st.rerun()
