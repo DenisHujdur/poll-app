@@ -4,6 +4,7 @@ from datetime import datetime, date, time, timezone, timedelta
 from pathlib import Path
 
 import streamlit as st
+from streamlit_sortables import sort_items
 
 SWEDISH_TZ = timezone(timedelta(hours=2))
 
@@ -108,25 +109,13 @@ def show_poll(poll_id):
             return
 
         n = len(poll["options"])
-        st.write("Rangordna alternativen (1 = bäst):")
-        rankings = {}
-        for option in poll["options"]:
-            rank = st.selectbox(
-                option,
-                options=list(range(1, n + 1)),
-                key=f"rank_{poll_id}_{option}",
-            )
-            rankings[option] = rank
+        st.write("Dra och släpp för att rangordna (överst = bäst):")
+        sorted_order = sort_items(poll["options"], direction="vertical")
 
         if st.button("Skicka"):
-            used = list(rankings.values())
-            if len(set(used)) != len(used):
-                st.warning("Varje placering kan bara användas en gång.")
-                return
-
             data = load_data()
-            for option, rank in rankings.items():
-                data[poll_id]["scores"][option] += (n - rank + 1)
+            for i, option in enumerate(sorted_order):
+                data[poll_id]["scores"][option] += (n - i)
             data[poll_id]["num_responses"] = data[poll_id].get("num_responses", 0) + 1
             save_data(data)
             st.session_state[voted_key] = True
