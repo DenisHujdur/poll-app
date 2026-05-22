@@ -1,9 +1,11 @@
 import json
 import uuid
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone, timedelta
 from pathlib import Path
 
 import streamlit as st
+
+SWEDISH_TZ = timezone(timedelta(hours=2))
 
 DATA_FILE = Path(__file__).parent / "polls.json"
 
@@ -66,10 +68,9 @@ def create_poll():
         }
         save_data(data)
 
-        poll_url = f"?poll={poll_id}"
         st.success("Omröstningen är skapad!")
-        st.info(f"Dela denna länk:\n\n`{poll_url}`")
-        st.code(poll_url)
+        st.info("Dela denna länk:")
+        st.code(f"?poll={poll_id}")
 
 
 def show_poll(poll_id):
@@ -80,7 +81,7 @@ def show_poll(poll_id):
         return
 
     poll = data[poll_id]
-    now = datetime.now()
+    now = datetime.now(SWEDISH_TZ).replace(tzinfo=None)
     reveal_at = datetime.fromisoformat(poll["reveal_at"])
 
     st.header(poll["question"])
