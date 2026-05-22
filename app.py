@@ -45,7 +45,7 @@ def create_poll():
 
     st.subheader("När ska resultatet visas?")
     reveal_date = st.date_input("Datum", value=date.today())
-    reveal_time = st.time_input("Tid", value=time(15, 0))
+    reveal_time = st.time_input("Tid", value=time(15, 0), step=timedelta(minutes=1))
 
     if st.button("Skapa omröstning"):
         options = [o.strip() for o in options if o.strip()]
