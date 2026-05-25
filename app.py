@@ -92,13 +92,14 @@ def show_poll(poll_id):
         st.subheader("Resultat")
         scores = poll["scores"]
         num = poll.get("num_responses", 0)
-        sorted_options = sorted(poll["options"], key=lambda o: scores[o], reverse=True)
-        max_score = max(scores.values()) if scores else 1
-        for i, option in enumerate(sorted_options):
+        top3 = sorted(poll["options"], key=lambda o: scores[o], reverse=True)[:3]
+        medals = ["🥇", "🥈", "🥉"]
+        max_score = scores[top3[0]] if top3 else 1
+        for i, option in enumerate(top3):
             pts = scores[option]
-            st.write(f"**{i + 1}. {option}** — {pts} poäng")
+            st.write(f"## {medals[i]} {option}")
+            st.write(f"{pts} poäng")
             st.progress(pts / max_score if max_score > 0 else 0)
-        st.caption(f"Antal svar: {num}")
     else:
         voted_key = f"voted_{poll_id}"
 
